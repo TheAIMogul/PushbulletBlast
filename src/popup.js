@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const notificationsList = document.getElementById('notificationsList');
   const bodyInput = document.getElementById('bodyInput');
   const sendButton = document.getElementById('sendButton');
+  const sendUrlButton = document.getElementById('sendUrlButton');
   const sendFileButton = document.getElementById('sendFileButton');
   const setupGuide = document.getElementById('setupGuide');
   const openOptionsButton = document.getElementById('openOptionsButton');
@@ -74,6 +75,42 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   sendButton.addEventListener('click', sendMessage);
+
+  sendUrlButton.addEventListener('click', async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+        const configData = await chrome.storage.local.get('remoteDeviceId');
+
+        const pushData = {
+          type: 'link',
+          url: tab.url,
+          body: ''
+        };
+
+        if (configData.remoteDeviceId) {
+          pushData.device_iden = configData.remoteDeviceId;
+        }
+
+        chrome.runtime.sendMessage({
+          type: 'send_push',
+          data: pushData
+        });
+
+        // Visual feedback
+        const originalHtml = sendUrlButton.innerHTML;
+        sendUrlButton.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/></svg>';
+        sendUrlButton.disabled = true;
+
+        setTimeout(() => {
+          sendUrlButton.innerHTML = originalHtml;
+          sendUrlButton.disabled = false;
+        }, 1500);
+      }
+    } catch (error) {
+      console.log('Error sending URL:', error);
+    }
+  });
   
   quickShareSend.addEventListener('click', () => {
     if (quickShareUrl.textContent) {
