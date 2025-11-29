@@ -310,5 +310,8 @@
   },
   "copied": {
     "message": "Copied"
+  },
+  "push_current_url_title": {
+    "message": "Push current page URL"
   }
 }
