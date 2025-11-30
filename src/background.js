@@ -401,6 +401,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     case 'delete_notification':
       await deleteNotification(message.id);
       break;
+    case 'delete_push':
+      await deletePush(message.iden);
+      break;
     case 'encryption_updated':
       initializeEncryption().then(() => {
         sendResponse({ success: true });
@@ -415,19 +418,20 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
       console.log('No access token available for keyboard shortcut');
       return;
     }
-    
+
     // Get the configured remote device IDs (same logic as context menu)
     const configData = await chrome.storage.local.get('remoteDeviceId');
-    
+
     const pageData = {
       type: 'link',
-      url: tab.url
+      url: tab.url,
+      title: tab.title
     };
-    
+
     if (configData.remoteDeviceId) {
       pageData.device_iden = configData.remoteDeviceId;
     }
-    
+
     await sendPush(pageData);
     console.log('Page URL pushed via keyboard shortcut:', tab.url);
   }
@@ -1574,7 +1578,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (menuItemId === 'pushbullet-page-selected') {
     const pageData = {
       type: 'link',
-      url: tab.url
+      url: tab.url,
+      title: tab.title
     };
     if (configData.remoteDeviceId) {
       pageData.device_iden = configData.remoteDeviceId;
@@ -1619,6 +1624,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const pageData = {
         type: 'link',
         url: tab.url,
+        title: tab.title,
         device_iden: deviceId
       };
       await sendPush(pageData);
@@ -1652,6 +1658,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const pageData = {
         type: 'link',
         url: tab.url,
+        title: tab.title,
         email: email
       };
       await sendPush(pageData);
@@ -1832,5 +1839,19 @@ async function deleteNotification(id) {
     console.log('Notification deleted:', id);
   } catch (error) {
     console.error('Failed to delete notification:', error);
+  }
+}
+
+async function deletePush(iden) {
+  try {
+    const data = await chrome.storage.local.get(['pushes', 'sentMessages']);
+
+    const pushes = (data.pushes || []).filter(p => p.iden !== iden);
+    const sentMessages = (data.sentMessages || []).filter(m => m.iden !== iden);
+
+    await chrome.storage.local.set({ pushes, sentMessages });
+    console.log('Push deleted:', iden);
+  } catch (error) {
+    console.error('Failed to delete push:', error);
   }
 }

@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const quickShareUrl = document.getElementById('quickShareUrl');
   const quickShareSend = document.getElementById('quickShareSend');
   const logoLink = document.getElementById('logoLink');
+  const clearNotificationsButton = document.getElementById('clearNotificationsButton');
 
   // Initialize i18n after CustomI18n is ready
   if (window.CustomI18n) {
@@ -123,7 +124,10 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.tabs.create({ url: 'https://www.pushbullet.com/#people/me' });
   });
 
-  
+  clearNotificationsButton.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'clear_mirror_history' });
+  });
+
   bodyInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -303,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
       chrome.storage.sync.get('accessToken'),
       chrome.storage.local.get('showQuickShare')
     ]);
-    
+
     // Only show quick share if we have an access token and the setting is enabled
     if (tokenData.accessToken && quickShareData.showQuickShare) {
       try {
@@ -311,6 +315,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
           quickShareUrl.textContent = tab.url;
+          quickShareUrl.dataset.title = tab.title || '';
           quickShareContainer.style.display = 'block';
         } else {
           quickShareContainer.style.display = 'none';
@@ -326,28 +331,34 @@ document.addEventListener('DOMContentLoaded', function() {
   
   async function sendLink(url) {
     const configData = await chrome.storage.local.get('remoteDeviceId');
-    
+
     const pushData = {
       type: 'link',
       url: url,
       body: ''
     };
-    
+
+    // Add title if available
+    const title = quickShareUrl.dataset.title;
+    if (title) {
+      pushData.title = title;
+    }
+
     if (configData.remoteDeviceId) {
       pushData.device_iden = configData.remoteDeviceId;
     }
-    
+
     // Use the background script's sendPush function which handles multiple devices
-    chrome.runtime.sendMessage({ 
-      type: 'send_push', 
-      data: pushData 
+    chrome.runtime.sendMessage({
+      type: 'send_push',
+      data: pushData
     });
-    
+
     // Provide visual feedback
     const originalText = quickShareSend.textContent;
     quickShareSend.textContent = '✓';
     quickShareSend.disabled = true;
-    
+
     setTimeout(() => {
       // Hide the quick share element after sending
       quickShareContainer.style.display = 'none';
@@ -356,18 +367,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function switchTab(tab) {
     const sendForm = document.querySelector('.send-form');
-    
+    const clearNotificationsBar = document.getElementById('clearNotificationsBar');
+
     if (tab === 'push') {
       pushTab.classList.add('active');
       notificationTab.classList.remove('active');
       messagesList.style.display = 'flex';
       notificationsList.style.display = 'none';
       sendForm.style.display = 'block';
-      
-      
+      clearNotificationsBar.style.display = 'none';
+
+
       // Clear unread push count when pushes tab is opened
       chrome.runtime.sendMessage({ type: 'clear_unread_pushes' });
-      
+
       // Ensure push tab scrolls to bottom when switching to it
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -380,7 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
       messagesList.style.display = 'none';
       notificationsList.style.display = 'flex';
       sendForm.style.display = 'none';
-      
+      clearNotificationsBar.style.display = 'flex';
+
       
       debouncedLoadNotifications();
       
@@ -434,27 +448,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  function debouncedLoadMessages() {
+  function debouncedLoadMessages(preserveScrollTop = null) {
     if (loadMessagesTimeout) {
       clearTimeout(loadMessagesTimeout);
     }
     loadMessagesTimeout = setTimeout(() => {
-      loadMessages();
+      loadMessages(preserveScrollTop);
       loadMessagesTimeout = null;
     }, 16); // Optimized for smooth 60fps updates
   }
 
-  function debouncedLoadNotifications() {
+  function debouncedLoadNotifications(preserveScrollTop = null) {
     if (loadNotificationsTimeout) {
       clearTimeout(loadNotificationsTimeout);
     }
     loadNotificationsTimeout = setTimeout(() => {
-      loadNotifications();
+      loadNotifications(preserveScrollTop);
       loadNotificationsTimeout = null;
     }, 16); // Optimized for smooth 60fps updates
   }
 
-  async function loadMessages() {
+  async function loadMessages(preserveScrollTop = null) {
     const [receivedData, sentData, configData, localData] = await Promise.all([
       chrome.storage.local.get('pushes'),
       chrome.storage.local.get('sentMessages'),
@@ -557,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
       bodyDiv.className = 'message-body';
       
       if (push.type === 'note') {
-        bodyDiv.textContent = push.body || '';
+        parseTextWithLinks(push.body || '', bodyDiv, 'message-link');
       } else if (push.type === 'link') {
         if (push.body) {
           bodyDiv.textContent = push.body;
@@ -602,7 +616,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (push.messageType === 'received' && ((push.type === 'note' && push.body) || (push.type === 'link' && push.url))) {
         const copyButton = document.createElement('button');
         copyButton.className = 'copy-button';
-        copyButton.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
+        copyButton.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>';
         copyButton.title = push.type === 'link' ? window.CustomI18n.getMessage('copy_link') : window.CustomI18n.getMessage('copy_message');
         copyButton.onclick = (e) => {
           e.stopPropagation();
@@ -611,6 +625,20 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         messageContentDiv.appendChild(copyButton);
       }
+
+      // Add delete button for all pushes
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'push-delete-button';
+      deleteButton.innerHTML = '<svg viewBox="3 2 18 20" fill="currentColor"><path d="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z"/></svg>';
+      deleteButton.title = window.CustomI18n.getMessage('delete_push');
+      deleteButton.onclick = (e) => {
+        e.stopPropagation();
+        chrome.runtime.sendMessage({
+          type: 'delete_push',
+          iden: push.iden
+        });
+      };
+      messageContentDiv.appendChild(deleteButton);
       
       messageRowDiv.appendChild(timestampDiv);
       messageRowDiv.appendChild(messageContentDiv);
@@ -619,16 +647,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Replace content atomically to prevent flashing
     messagesList.replaceChildren(fragment);
-    
-    // Ensure scroll to bottom after DOM updates
+
+    // Conditionally restore scroll position or scroll to bottom
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        messagesList.scrollTop = messagesList.scrollHeight;
+        if (preserveScrollTop !== null) {
+          messagesList.scrollTop = preserveScrollTop;
+        } else {
+          messagesList.scrollTop = messagesList.scrollHeight;
+        }
       });
     });
   }
 
-  async function loadNotifications() {
+  async function loadNotifications(preserveScrollTop = null) {
     const data = await chrome.storage.local.get('mirrorNotifications');
     const notifications = data.mirrorNotifications || [];
 
@@ -648,19 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Build content in DocumentFragment to avoid visible flashing
     const fragment = document.createDocumentFragment();
-    
-    // Add clear history button as first element when we have notifications and API token
-    const tokenData = await chrome.storage.sync.get('accessToken');
-    if (tokenData.accessToken) {
-      const clearButton = document.createElement('button');
-      clearButton.className = 'clear-history-button';
-      clearButton.textContent = window.CustomI18n.getMessage('clear_mirror_history');
-      clearButton.onclick = () => {
-        chrome.runtime.sendMessage({ type: 'clear_mirror_history' });
-      };
-      fragment.appendChild(clearButton);
-    }
-    
+
     // Sort by timestamp (oldest to newest as requested)
     notifications.sort((a, b) => (a.created || 0) - (b.created || 0));
     
@@ -796,11 +816,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Replace content atomically to prevent flashing
     notificationsList.replaceChildren(fragment);
-    
-    // Scroll to bottom to show newest notifications
+
+    // Conditionally restore scroll position or scroll to bottom
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        notificationsList.scrollTop = notificationsList.scrollHeight;
+        if (preserveScrollTop !== null) {
+          notificationsList.scrollTop = preserveScrollTop; // Preserve position after deletion
+        } else {
+          notificationsList.scrollTop = notificationsList.scrollHeight; // Scroll to bottom for new notifications
+        }
       });
     });
   }
@@ -844,6 +868,32 @@ document.addEventListener('DOMContentLoaded', function() {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  function parseTextWithLinks(text, container, linkClass) {
+    const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+
+      const link = document.createElement('a');
+      const url = match[1];
+      link.href = url.toLowerCase().startsWith('www.') ? 'https://' + url : url;
+      link.textContent = url;
+      link.className = linkClass;
+      link.target = '_blank';
+      container.appendChild(link);
+
+      lastIndex = urlRegex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      container.appendChild(document.createTextNode(text.slice(lastIndex)));
     }
   }
 
@@ -993,10 +1043,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && (changes.pushes || changes.sentMessages)) {
-      debouncedLoadMessages();
+      // Detect if deleting (either array shrinks)
+      const oldPushesLen = changes.pushes?.oldValue?.length || 0;
+      const newPushesLen = changes.pushes?.newValue?.length || 0;
+      const oldSentLen = changes.sentMessages?.oldValue?.length || 0;
+      const newSentLen = changes.sentMessages?.newValue?.length || 0;
+      const isDeleting = (changes.pushes && newPushesLen < oldPushesLen) ||
+                         (changes.sentMessages && newSentLen < oldSentLen);
+
+      const savedScrollTop = isDeleting ? messagesList.scrollTop : null;
+      debouncedLoadMessages(savedScrollTop);
     }
     if (areaName === 'local' && changes.mirrorNotifications) {
-      debouncedLoadNotifications();
+      // Only preserve scroll position when deleting (array shrinks), otherwise scroll to bottom for new notifications
+      const oldLength = changes.mirrorNotifications.oldValue?.length || 0;
+      const newLength = changes.mirrorNotifications.newValue?.length || 0;
+      const isDeleting = newLength < oldLength;
+
+      const savedScrollTop = isDeleting ? notificationsList.scrollTop : null;
+      debouncedLoadNotifications(savedScrollTop);
     }
     if (areaName === 'sync' && changes.accessToken) {
       checkAccessToken().then(() => {

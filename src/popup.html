@@ -253,19 +253,48 @@
       border: none;
       cursor: pointer;
       color: var(--copy-button);
-      font-size: 14px;
-      padding: 2px;
+      padding: 4px;
       margin-left: 4px;
       opacity: 0;
       transition: opacity 0.2s, color 0.2s;
       flex-shrink: 0;
-      align-self: flex-start;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .copy-button svg {
+      width: 14px;
+      height: 14px;
     }
     .message-row:hover .copy-button {
       opacity: 1;
     }
     .copy-button:hover {
       color: var(--copy-button-hover);
+    }
+    .push-delete-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--copy-button);
+      padding: 4px;
+      margin-left: 2px;
+      opacity: 0;
+      transition: opacity 0.2s, color 0.2s;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .push-delete-button svg {
+      width: 14px;
+      height: 14px;
+    }
+    .message-row:hover .push-delete-button {
+      opacity: 1;
+    }
+    .push-delete-button:hover {
+      color: #f44336;
     }
     .message-link { 
       color: var(--text-link); 
@@ -566,6 +595,29 @@
     .clear-history-button:hover {
       color: var(--copy-button-hover);
     }
+    .clear-notifications-bar {
+      border-top: 1px solid var(--border-primary);
+      background: var(--bg-tertiary);
+      padding: 8px 15px;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    .clear-notifications-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-tertiary);
+      font-size: 12px;
+      transition: color 0.2s ease;
+      text-decoration: underline;
+      padding: 0;
+    }
+    .clear-notifications-button:hover {
+      color: var(--copy-button-hover);
+    }
     .logo-link {
       text-decoration: none;
       color: inherit;
@@ -670,7 +722,11 @@
   
   <div class="messages" id="notificationsList" style="display: none;">
   </div>
-  
+
+  <div class="clear-notifications-bar" id="clearNotificationsBar">
+    <button id="clearNotificationsButton" class="clear-notifications-button" data-i18n="clear_mirror_history">Clear notification</button>
+  </div>
+
   <div class="setup-guide" id="setupGuide">
     <h3 data-i18n="setup_required">Setup Required</h3>
     <p data-i18n="setup_configure_token">Configure your Pushbullet access token to start using the extension.</p>
